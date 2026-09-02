@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Proyectos Mineros · Chile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EDEEF0; --surface:#FFFFFF; --ink:#16181D; --muted:#5E6570;
+    --line:#DDE0E4; --accent:#1F7A6B; --copper:#A9682F;
+    --ok:#2E7D57; --warn:#9C7A12; --bad:#A23B34; --info:#3A5EA8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif; line-height:1.5;
+    font-feature-settings:"tnum" 1;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 20px}
+
+  /* Barra superior */
+  header{background:var(--ink); color:#fff; padding:18px 0}
+  .head-row{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px}
+  h1{font-family:'Archivo',sans-serif; font-weight:700; font-size:20px; letter-spacing:-.01em; margin:0}
+  h1 span{color:#7FD8C6}
+  .updated{font-size:13px; color:#AEB4BD}
+  .updated b{color:#fff; font-weight:600}
+
+  /* Franja de indicadores */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:22px 0}
+  .stat{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px}
+  .stat .n{font-family:'Archivo',sans-serif; font-weight:700; font-size:30px; letter-spacing:-.02em; line-height:1.1}
+  .stat.money .n{color:var(--copper)}
+  .stat.rr{border-color:var(--accent)}
+  .stat.rr .n{color:var(--accent)}
+  .stat .lbl{font-size:13px; color:var(--muted); margin-top:2px}
+
+  /* Oportunidades para Recursos y Reservas */
+  .rr-section{margin:26px 0}
+  .rr-section h2{font-family:'Archivo',sans-serif; font-size:17px; font-weight:700; color:var(--accent);
+    margin:0 0 12px; display:flex; justify-content:space-between; align-items:baseline}
+  .rr-card{background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--accent);
+    border-radius:var(--radius); padding:16px 18px; margin-bottom:12px}
+  .rr-card .top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+  .rr-card .name{font-weight:700; font-size:15.5px}
+  .rr-card .empresa{color:var(--muted); font-size:13px; margin-top:2px}
+  .rr-card .why{margin-top:10px; padding:10px 12px; background:#F2F7F5; border-radius:8px;
+    font-size:13.5px; color:var(--ink); line-height:1.45}
+  .rr-card .meta{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:12.5px; color:var(--muted)}
+
+  /* Controles */
+  .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:6px 0 20px}
+  .controls input, .controls select{
+    font-family:inherit; font-size:14px; color:var(--ink); background:var(--surface);
+    border:1px solid var(--line); border-radius:8px; padding:9px 11px;
+  }
+  .controls input{flex:1; min-width:200px}
+  .controls input:focus, .controls select:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent)}
+
+  /* Columnas */
+  .grid{display:grid; grid-template-columns:1.35fr 1fr; gap:20px; align-items:start; padding-bottom:60px}
+  .col h2{font-family:'Archivo',sans-serif; font-size:15px; font-weight:600; margin:0 0 12px;
+    padding-bottom:8px; border-bottom:2px solid var(--ink); display:flex; justify-content:space-between; align-items:baseline}
+  .col h2 .count{font-size:13px; color:var(--muted); font-weight:500}
+
+  /* Tarjeta de proyecto */
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:10px}
+  .card .top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+  .card .name{font-weight:600; font-size:15px; line-height:1.35}
+  .chip{font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px; white-space:nowrap; color:#fff}
+  .chip.ok{background:var(--ok)} .chip.warn{background:var(--warn)}
+  .chip.bad{background:var(--bad)} .chip.info{background:var(--info)}
+  .meta{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px; font-size:13px; color:var(--muted)}
+  .meta .titular{color:var(--ink)}
+  .badge{display:inline-block; font-size:11px; font-weight:600; border:1px solid var(--line);
+    border-radius:5px; padding:1px 6px; color:var(--muted)}
+  .inv{font-weight:600; color:var(--copper)}
+
+  /* Noticias */
+  .news{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:12px 14px; margin-bottom:9px}
+  .news .t{font-weight:500; font-size:14px; line-height:1.4}
+  .news .s{font-size:12px; color:var(--muted); margin-top:5px}
+
+  .empty{background:var(--surface); border:1px dashed var(--line); border-radius:var(--radius);
+    padding:26px; text-align:center; color:var(--muted); font-size:14px}
+  footer{border-top:1px solid var(--line); padding:18px 0 40px; color:var(--muted); font-size:12.5px}
+
+  @media (max-width:820px){
+    .grid{grid-template-columns:1fr}
+    .stats{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap head-row">
+    <h1>Monitor de Proyectos Mineros <span>· Chile</span></h1>
+    <div class="updated">Actualizado: <b id="updated">—</b></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="stats">
+    <div class="stat rr"><div class="n" id="s-rr">—</div><div class="lbl">Oportunidades para R&amp;R</div></div>
+    <div class="stat"><div class="n" id="s-proj">—</div><div class="lbl">Proyectos en el SEIA (últimos ingresos)</div></div>
+    <div class="stat money"><div class="n" id="s-inv">—</div><div class="lbl">Inversión asociada (MM US$)</div></div>
+    <div class="stat"><div class="n" id="s-news">—</div><div class="lbl">Noticias de prensa</div></div>
+  </section>
+
+  <div class="controls">
+    <input id="q" type="text" placeholder="Buscar por nombre, empresa, región…" aria-label="Buscar">
+    <select id="region" aria-label="Filtrar por región"><option value="">Todas las regiones</option></select>
+    <select id="tipo" aria-label="Filtrar por tipo">
+      <option value="">DIA y EIA</option><option value="DIA">Solo DIA</option><option value="EIA">Solo EIA</option>
+    </select>
+  </div>
+
+  <section class="rr-section">
+    <h2>Oportunidades para Recursos y Reservas <span class="count" id="c-rr"></span></h2>
+    <div id="oportunidades"></div>
+  </section>
+
+  <div class="grid">
+    <div class="col">
+      <h2>Proyectos ingresados al SEIA <span class="count" id="c-proj"></span></h2>
+      <div id="proyectos"></div>
+    </div>
+    <div class="col">
+      <h2>Prensa <span class="count" id="c-news"></span></h2>
+      <div id="noticias"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="wrap">
+  Fuentes: e-SEIA (Servicio de Evaluación Ambiental), Google News y análisis semanal con
+  Claude (búsqueda web) para oportunidades de Recursos y Reservas. Datos recolectados
+  automáticamente cada lunes. Este panel es referencial; verifica siempre en la fuente oficial.
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let DATA = {proyectos:[], noticias:[], oportunidades:[]};
+
+function chipClase(estado){
+  const e = (estado||"").toLowerCase();
+  if(e.includes("aprob")) return "ok";
+  if(e.includes("rechaz")||e.includes("no admit")||e.includes("desist")) return "bad";
+  if(e.includes("calific")||e.includes("admis")||e.includes("evalua")) return "warn";
+  return "info";
+}
+function parseMonto(s){
+  // "3.100" (miles con punto) o "1.850,5" -> número en MM US$
+  if(!s) return 0;
+  let t = String(s).replace(/[^\d.,]/g,"").replace(/\./g,"").replace(",",".");
+  const n = parseFloat(t); return isNaN(n)?0:n;
+}
+function fmt(n){ return n.toLocaleString("es-CL",{maximumFractionDigits:0}); }
+
+function render(){
+  const q = $("#q").value.toLowerCase().trim();
+  const reg = $("#region").value;
+  const tipo = $("#tipo").value;
+
+  const proj = DATA.proyectos.filter(p=>{
+    const hay = [p.nombre,p.titular,p.region,p.tipologia].join(" ").toLowerCase();
+    return (!q || hay.includes(q)) && (!reg || p.region===reg) && (!tipo || (p.tipo||"").toUpperCase().includes(tipo));
+  });
+  const news = DATA.noticias.filter(n => !q || (n.titulo+" "+(n.fuente||"")).toLowerCase().includes(q));
+  const oport = DATA.oportunidades.filter(o=>{
+    const hay = [o.proyecto,o.empresa,o.region,o.linea_servicio,o.relevancia].join(" ").toLowerCase();
+    return (!q || hay.includes(q)) && (!reg || o.region===reg);
+  });
+
+  // Indicadores (sobre lo filtrado)
+  $("#s-rr").textContent = oport.length;
+  $("#s-proj").textContent = proj.length;
+  $("#s-inv").textContent = fmt(proj.reduce((a,p)=>a+parseMonto(p.inversion_mmusd),0));
+  $("#s-news").textContent = news.length;
+  $("#c-rr").textContent = oport.length ? `${oport.length} esta semana` : "";
+  $("#c-proj").textContent = proj.length ? `${proj.length} mostrados` : "";
+  $("#c-news").textContent = news.length ? `${news.length} mostradas` : "";
+
+  // Proyectos
+  const cp = $("#proyectos");
+  cp.innerHTML = proj.length ? proj.map(p=>`
+    <div class="card">
+      <div class="top">
+        <div class="name">${p.enlace?`<a href="${p.enlace}" target="_blank" rel="noopener">${esc(p.nombre)}</a>`:esc(p.nombre)}</div>
+        ${p.estado?`<span class="chip ${chipClase(p.estado)}">${esc(p.estado)}</span>`:""}
+      </div>
+      <div class="meta">
+        ${p.titular?`<span class="titular">${esc(p.titular)}</span>`:""}
+        ${p.region?`<span>${esc(p.region)}</span>`:""}
+        ${p.tipo?`<span class="badge">${esc(p.tipo)}</span>`:""}
+        ${parseMonto(p.inversion_mmusd)?`<span class="inv">US$ ${fmt(parseMonto(p.inversion_mmusd))} MM</span>`:""}
+        ${p.fecha?`<span>${esc(p.fecha)}</span>`:""}
+      </div>
+    </div>`).join("")
+    : `<div class="empty">No hay proyectos que coincidan con el filtro. Prueba ampliar la búsqueda.</div>`;
+
+  // Noticias
+  const cn = $("#noticias");
+  cn.innerHTML = news.length ? news.map(n=>`
+    <div class="news">
+      <div class="t"><a href="${n.enlace}" target="_blank" rel="noopener">${esc(n.titulo)}</a></div>
+      <div class="s">${esc(n.fuente||"")}${n.fecha?" · "+esc(n.fecha):""}</div>
+    </div>`).join("")
+    : `<div class="empty">Sin noticias que coincidan con el filtro.</div>`;
+
+  // Oportunidades para Recursos y Reservas
+  const co = $("#oportunidades");
+  co.innerHTML = oport.length ? oport.map(o=>`
+    <div class="rr-card">
+      <div class="top">
+        <div>
+          <div class="name">${o.fuente_url?`<a href="${o.fuente_url}" target="_blank" rel="noopener">${esc(o.proyecto)}</a>`:esc(o.proyecto)}</div>
+          <div class="empresa">${esc(o.empresa)}</div>
+        </div>
+        ${o.linea_servicio?`<span class="badge">${esc(o.linea_servicio)}</span>`:""}
+      </div>
+      ${o.relevancia?`<div class="why">${esc(o.relevancia)}</div>`:""}
+      <div class="meta">
+        ${o.region?`<span>${esc(o.region)}</span>`:""}
+        ${o.fecha?`<span>${esc(o.fecha)}</span>`:""}
+      </div>
+    </div>`).join("")
+    : `<div class="empty">Sin oportunidades curadas esta semana.</div>`;
+}
+
+function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function init(){
+  try{
+    const r = await fetch("./data/latest.json?_="+Date.now());
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    DATA.proyectos = d.proyectos||[];
+    DATA.noticias = d.noticias||[];
+    DATA.oportunidades = d.oportunidades||[];
+    $("#updated").textContent = d.generado_legible || "—";
+
+    const regiones = [...new Set([...DATA.proyectos, ...DATA.oportunidades].map(p=>p.region).filter(Boolean))].sort();
+    $("#region").insertAdjacentHTML("beforeend",
+      regiones.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join(""));
+
+    ["#q","#region","#tipo"].forEach(s=>$(s).addEventListener("input", render));
+    render();
+  }catch(e){
+    document.querySelector(".grid").innerHTML =
+      `<div class="empty" style="grid-column:1/-1">No se pudieron cargar los datos todavía.
+       El panel se llena automáticamente tras la primera corrida del recolector (cada lunes),
+       o al ejecutar <code>python collector.py</code>.</div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
