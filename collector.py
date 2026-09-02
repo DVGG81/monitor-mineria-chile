@@ -35,6 +35,10 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 
 DATA_DIR = Path(__file__).parent / "docs" / "data"
+DOCS_DIR = DATA_DIR.parent
+DASHBOARD_TEMPLATE = DOCS_DIR / "index.html"
+REPORTE_HTML = DOCS_DIR / "reporte.html"
+DATOS_INCRUSTADOS_MARCADOR = '<script id="datos-incrustados" type="application/json">{}</script>'
 
 # Palabras clave para reconocer que un proyecto/noticia es de minería.
 KEYWORDS_MINERIA = [
@@ -427,6 +431,38 @@ def sample_data() -> dict:
 
 
 # --------------------------------------------------------------------------
+# Reporte autocontenido (docs/reporte.html)
+# --------------------------------------------------------------------------
+
+def generar_reporte_html(corrida: dict) -> None:
+    """Genera docs/reporte.html: una copia de docs/index.html con los datos de esta
+    corrida incrustados directamente (sin fetch), para poder abrirla localmente o
+    compartirla como archivo (ej. subirla a SharePoint) cuando el equipo no puede
+    llegar a la URL de GitHub Pages (bloqueada por política de red, por ejemplo).
+    """
+    if not DASHBOARD_TEMPLATE.exists():
+        print(f"[Reporte] No se encontró {DASHBOARD_TEMPLATE}; se omite reporte.html.",
+              file=sys.stderr)
+        return
+
+    plantilla = DASHBOARD_TEMPLATE.read_text(encoding="utf-8")
+    if DATOS_INCRUSTADOS_MARCADOR not in plantilla:
+        print("[Reporte] No se encontró el marcador de datos incrustados en "
+              "index.html; se omite reporte.html.", file=sys.stderr)
+        return
+
+    # Escapar "</" para que un título/URL con "</script>" no rompa el HTML.
+    datos_json = json.dumps(corrida, ensure_ascii=False).replace("</", "<\\/")
+    reemplazo = (
+        '<script id="datos-incrustados" type="application/json">'
+        f"{datos_json}</script>"
+    )
+    REPORTE_HTML.write_text(
+        plantilla.replace(DATOS_INCRUSTADOS_MARCADOR, reemplazo, 1), encoding="utf-8")
+    print(f"[Reporte] Generado {REPORTE_HTML}", file=sys.stderr)
+
+
+# --------------------------------------------------------------------------
 # Orquestación
 # --------------------------------------------------------------------------
 
@@ -482,6 +518,8 @@ def main():
     })
     hist_path.write_text(json.dumps(historial, ensure_ascii=False, indent=2),
                          encoding="utf-8")
+
+    generar_reporte_html(corrida)
 
     print(f"OK: {corrida['resumen']['n_proyectos']} proyectos, "
           f"{corrida['resumen']['n_noticias']} noticias, "

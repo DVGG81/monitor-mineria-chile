@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name  "monitor-mineria-bot"
           git config user.email "actions@github.com"
-          git add docs/data/latest.json docs/data/history.json
+          git add docs/data/latest.json docs/data/history.json docs/reporte.html
           if git diff --staged --quiet; then
             echo "Sin cambios que publicar."
           else

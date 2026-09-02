@@ -1,9 +1,8 @@
 # Monitor de Proyectos Mineros · Chile
 
 Sistema que **cada lunes** busca automáticamente información sobre proyectos
-mineros en Chile y la publica en un **dashboard web** que tu equipo abre desde
-una URL. No requiere servidor propio ni pago: funciona sobre GitHub (Actions +
-Pages), ambos gratuitos.
+mineros en Chile y genera un **dashboard** con los resultados. No requiere
+servidor propio ni pago: funciona sobre GitHub Actions (gratuito).
 
 ## Cómo funciona
 
@@ -15,15 +14,34 @@ Pages), ambos gratuitos.
                          └─ Claude API + web_search (oportunidades para Recursos y Reservas)
                          │
                          ▼
-                    docs/data/latest.json   (se guarda en el repo)
+             docs/data/latest.json + docs/reporte.html   (se guardan en el repo)
                          │
                          ▼
-             GitHub Pages sirve docs/index.html  ──►  tu equipo abre la URL
+     docs/reporte.html: descárgalo tú mismo desde github.com y ábrelo
+             (o, si tu red permite *.github.io, GitHub Pages sirve docs/index.html)
 ```
 
-- **collector.py** — recolecta y guarda los datos en `docs/data/`.
-- **docs/index.html** — dashboard estático (filtros por región, tipo, búsqueda).
+- **collector.py** — recolecta los datos y genera tanto `docs/data/` como `docs/reporte.html`.
+- **docs/index.html** — plantilla del dashboard; sirve tal cual vía GitHub Pages (carga los
+  datos con `fetch`).
+- **docs/reporte.html** — el mismo dashboard pero **autocontenido**: cada corrida incrusta
+  los datos directamente en el archivo, así que se abre local con doble clic, sin depender
+  de una URL ni de GitHub Pages. Pensado para cuando la política de red de la empresa
+  bloquea `*.github.io` (caso común).
 - **.github/workflows/weekly.yml** — el programador semanal.
+
+### Cómo conseguir `docs/reporte.html` cada semana
+
+1. Entra al repo en `github.com/TU-USUARIO/TU-REPO` (esto sí funciona aunque `*.github.io`
+   esté bloqueado — son dominios distintos).
+2. Abre `docs/reporte.html` en la vista de código.
+3. Botón **"Download raw file"** (el ícono de descarga, arriba a la derecha del archivo) para
+   guardarlo en tu computador.
+4. Ábrelo con doble clic (se abre en tu navegador sin conexión a internet, salvo por las
+   fuentes de Google Fonts que son puramente cosméticas) o súbelo a la carpeta de
+   SharePoint/OneDrive que uses con tu equipo.
+
+Alternativa si usas git: `git pull` en tu copia local y abre `docs/reporte.html` directo.
 
 La sección "Oportunidades para Recursos y Reservas" es la única parte de pago del
 sistema: usa la API de Claude con búsqueda web para curar, cada semana, noticias e
@@ -35,28 +53,29 @@ marcha" y "Nota sobre costos" más abajo.
 ## Puesta en marcha (una sola vez, ~10 min)
 
 1. **Crea un repositorio** en GitHub (público o privado) y sube estos archivos.
-2. Ve a **Settings → Pages** y en "Source" elige la rama `main` y la carpeta
-   **`/docs`**. Guarda. GitHub te dará una URL tipo
-   `https://TU-USUARIO.github.io/TU-REPO/` — ésa es la del dashboard.
-3. Ve a **Settings → Actions → General → Workflow permissions** y activa
+2. Ve a **Settings → Actions → General → Workflow permissions** y activa
    **"Read and write permissions"** (para que el bot pueda guardar los datos).
-4. Ve a **Settings → Secrets and variables → Actions → New repository secret** y crea
+3. Ve a **Settings → Secrets and variables → Actions → New repository secret** y crea
    `ANTHROPIC_API_KEY` con tu API key de Anthropic. Sin este secret el dashboard sigue
    funcionando igual, solo que sin la sección "Oportunidades para Recursos y Reservas".
-5. (Opcional) En la pestaña **Actions** abre el workflow y pulsa **"Run workflow"**
-   para lanzarlo de inmediato y no esperar al lunes.
+4. (Opcional, solo si tu red no bloquea `*.github.io`) Ve a **Settings → Pages** y en
+   "Source" elige la rama `main` y la carpeta **`/docs`**. GitHub te dará una URL tipo
+   `https://TU-USUARIO.github.io/TU-REPO/` con el dashboard siempre actualizado. Si tu
+   empresa bloquea ese dominio (como en SRK), sáltate este paso y usa
+   `docs/reporte.html` — ver la sección de arriba.
+5. En la pestaña **Actions** abre el workflow y pulsa **"Run workflow"** para lanzarlo
+   de inmediato y no esperar al lunes.
 
-Listo. Desde ahí corre solo cada lunes y el dashboard se actualiza.
+Listo. Desde ahí corre solo cada lunes.
 
 ### Acceso del equipo
-- Repo **público** → cualquiera con la URL ve el dashboard, y además GitHub Pages y las
-  horas de GitHub Actions son gratis sin límite práctico. **Es la opción recomendada
-  para minimizar costo**, dado que los datos en sí (e-SEIA y prensa son públicos, y las
-  oportunidades se arman a partir de fuentes públicas) no son confidenciales.
-- Repo **privado** → pierde ambas gratuidades: GitHub Pages privado requiere un plan de
-  pago (Team/Enterprise), y las horas de Actions dejan de ser ilimitadas. Si de todos
-  modos se necesita privado, la alternativa es desplegar `docs/` en algo como
-  Netlify/Vercel con acceso restringido.
+- Vía `docs/reporte.html`: descárgalo del repo cada semana (ver arriba) y compártelo por
+  donde ya distribuyas archivos con tu equipo (SharePoint, OneDrive, correo). No depende
+  de la visibilidad del repo.
+- Vía GitHub Pages (si tu red lo permite): repo **público** → cualquiera con la URL ve el
+  dashboard, y Pages + Actions son gratis sin límite práctico. Repo **privado** → pierde
+  ambas gratuidades (Pages privado requiere plan de pago; Actions tiene minutos
+  limitados).
 
 ### Nota sobre costos
 

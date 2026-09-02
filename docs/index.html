@@ -146,6 +146,12 @@
   automáticamente cada lunes. Este panel es referencial; verifica siempre en la fuente oficial.
 </footer>
 
+<!-- Si collector.py genera este archivo como reporte autocontenido (docs/reporte.html),
+     incrusta aquí los datos de la corrida y el script de abajo los usa directamente
+     en vez de hacer fetch("./data/latest.json"). En docs/index.html (servido por
+     GitHub Pages) queda vacío y se usa el fetch normal. -->
+<script id="datos-incrustados" type="application/json">{}</script>
+
 <script>
 const $ = s => document.querySelector(s);
 let DATA = {proyectos:[], noticias:[], oportunidades:[]};
@@ -238,11 +244,17 @@ function render(){
 
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
+async function cargarDatos(){
+  const incrustados = JSON.parse($("#datos-incrustados").textContent || "{}");
+  if(incrustados && incrustados.generado_utc) return incrustados;   // docs/reporte.html
+  const r = await fetch("./data/latest.json?_="+Date.now());        // docs/index.html (Pages)
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
 async function init(){
   try{
-    const r = await fetch("./data/latest.json?_="+Date.now());
-    if(!r.ok) throw new Error(r.status);
-    const d = await r.json();
+    const d = await cargarDatos();
     DATA.proyectos = d.proyectos||[];
     DATA.noticias = d.noticias||[];
     DATA.oportunidades = d.oportunidades||[];
