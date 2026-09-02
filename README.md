@@ -84,17 +84,21 @@ Todo el sistema es gratuito salvo la sección de "Oportunidades para Recursos y 
 económicas disponibles para minimizar ese costo:
 
 - Modelo `claude-sonnet-5` (no `claude-opus-5`, que es más caro).
-- `output_config.effort: "medium"` — la primera corrida real con `"low"` no encontró
-  ninguna oportunidad, así que se subió un nivel. Si vuelve a pasar, el siguiente ajuste
-  es `max_uses` (más búsquedas) antes que subir a `"high"` o cambiar de modelo.
-- Máximo 4 búsquedas web (`max_uses`) por corrida.
+- `output_config.effort: "low"`.
+- Máximo 3 búsquedas web (`max_uses`) por corrida.
+- **Una sola llamada a la API, sin reintentos.** Se probó subir `effort` a `"medium"` con
+  reintentos automáticos si el modelo no terminaba en un turno (`pause_turn`), y en la
+  práctica una corrida tardó ~8 minutos y gastó bastante más de lo esperado — cada
+  reintento es una llamada nueva de precio completo. Ahora, si no alcanza a terminar en
+  un turno, simplemente no hay oportunidades esa semana en vez de insistir pagando más.
 - Cadencia semanal, no diaria.
 
 Aun así, cada corrida consume una cantidad de tokens que varía según cuánto necesite
 investigar esa semana — revisa las tarifas vigentes en la consola de Anthropic antes de
-dejarlo corriendo indefinidamente. Para bajar el costo: reduce `effort` de vuelta a
-`"low"` o espacia el cron a cada dos semanas. Para subir la calidad de las oportunidades
-detectadas: sube `max_uses`, y solo después `effort` a `"high"`.
+dejarlo corriendo indefinidamente. Para subir la calidad de las oportunidades detectadas
+sin arriesgar corridas largas/caras: sube primero `max_uses` de a poco (ej. a 4 o 5) y
+mide cuánto tarda; solo después considera subir `effort`, y hazlo sabiendo que puede
+alargar mucho la corrida si el modelo no termina en un turno.
 
 ## Probar en tu computador (opcional)
 

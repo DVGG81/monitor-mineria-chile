@@ -324,10 +324,14 @@ def fetch_oportunidades_rr() -> list[dict]:
     motivo en stderr y se devuelve una lista vacía, para que SEIA y prensa (que
     son gratis) nunca dependan de esta parte de pago.
 
-    Configurado para minimizar costo: modelo claude-sonnet-5 (no opus), effort
-    "medium" (subido desde "low" tras la primera corrida real, que no encontró
-    nada), y máximo 4 búsquedas web por corrida. Ver README para cómo seguir
-    ajustando esto si la calidad de las oportunidades detectadas no convence.
+    Configurado para minimizar costo y tiempo: modelo claude-sonnet-5 (no opus),
+    effort "low", máximo 3 búsquedas web, y una sola llamada — sin reintentos por
+    pause_turn. Un reintento por pause_turn es una llamada nueva de precio
+    completo; se prefiere no encontrar nada esa semana antes que encadenar
+    varias llamadas caras sin control (esto pasó en la práctica: con effort
+    "medium" y reintentos, una corrida tardó ~8 min y gastó de más). Ver README
+    para cómo ajustar esto si la calidad de las oportunidades detectadas no
+    convence.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -338,28 +342,22 @@ def fetch_oportunidades_rr() -> list[dict]:
     import anthropic
     client = anthropic.Anthropic()
 
-    messages = [{"role": "user", "content": OPORTUNIDADES_PROMPT}]
-    response = None
     try:
-        for _ in range(4):  # 1 intento + hasta 3 reintentos por pause_turn
-            response = client.messages.create(
-                model="claude-sonnet-5",
-                max_tokens=8000,
-                messages=messages,
-                tools=[{"type": "web_search_20260209", "name": "web_search", "max_uses": 4}],
-                output_config={
-                    "effort": "medium",
-                    "format": {"type": "json_schema", "schema": OPORTUNIDADES_SCHEMA},
-                },
-            )
-            if response.stop_reason == "pause_turn":
-                messages = [messages[0], {"role": "assistant", "content": response.content}]
-                continue
-            break
+        response = client.messages.create(
+            model="claude-sonnet-5",
+            max_tokens=8000,
+            messages=[{"role": "user", "content": OPORTUNIDADES_PROMPT}],
+            tools=[{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}],
+            output_config={
+                "effort": "low",
+                "format": {"type": "json_schema", "schema": OPORTUNIDADES_SCHEMA},
+            },
+        )
 
-        if response is None or response.stop_reason == "pause_turn":
-            print("[Oportunidades R&R] Investigación no terminó tras varios "
-                  "pause_turn; se omite esta corrida.", file=sys.stderr)
+        if response.stop_reason == "pause_turn":
+            print("[Oportunidades R&R] La investigación no terminó en un turno "
+                  "(pause_turn); se omite esta corrida en vez de reintentar y "
+                  "gastar más.", file=sys.stderr)
             return []
         if response.stop_reason == "refusal":
             print("[Oportunidades R&R] La API rechazó la solicitud.", file=sys.stderr)
