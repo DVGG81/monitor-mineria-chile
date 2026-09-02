@@ -38,5 +38,10 @@ jobs:
             echo "Sin cambios que publicar."
           else
             git commit -m "Datos mineria Chile $(date -u +'%Y-%m-%d')"
+            # Si el repo avanzó mientras corría el recolector (ej. un push manual
+            # en paralelo), rebase antes de subir en vez de fallar con "rejected".
+            # -X ours: ante un conflicto en los propios archivos de datos, se
+            # prefiere la corrida más nueva (la de este job).
+            git pull --rebase -X ours origin main
             git push
           fi
