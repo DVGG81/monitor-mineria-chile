@@ -136,16 +136,18 @@ OPORTUNIDADES_SCHEMA = {
     "additionalProperties": False,
 }
 
-# e-SEIA: parámetros del buscador. El endpoint acepta GET.
-SEIA_URL = "https://seia.sea.gob.cl/busqueda/buscarProyectoAction.php"
-# Cuántas páginas de resultados recientes revisar (10 proyectos por página aprox).
+# e-SEIA: el buscador de proyectos migró de una tabla HTML a un endpoint JSON
+# (DataTables server-side) durante 2026. El endpoint acepta POST con datos
+# application/x-www-form-urlencoded y no requiere sesión previa.
+SEIA_URL = "https://seia.sea.gob.cl/busqueda/buscarProyectoResumenAction.php"
+# Cuántas páginas de resultados recientes revisar, y cuántos proyectos por página.
 SEIA_MAX_PAGINAS = 5
-# Nota: el buscador permite filtrar por "sector productivo = Minería" con un id
-# numérico en el parámetro `sector`. Si conoces ese id lo puedes fijar aquí para
+SEIA_PAGE_SIZE = 50
+# Nota: el buscador permite filtrar por sector productivo con un id numérico en
+# el parámetro `sectores_economicos`. Si conoces ese id lo puedes fijar aquí para
 # consultar solo minería. Si lo dejas en None, el script trae los proyectos más
 # recientes de todos los sectores y filtra por palabra clave (más robusto ante
-# cambios del sitio). Para hallar el id: abre el buscador, elige "Minería" y mira
-# el parámetro en la URL o en el formulario.
+# cambios del sitio).
 SEIA_SECTOR_ID = None
 
 HEADERS = {
@@ -169,102 +171,86 @@ def limpiar(texto: str) -> str:
     return re.sub(r"\s+", " ", (texto or "")).strip()
 
 
+def formato_inversion_mm(valor) -> str:
+    """Convierte INVERSION_MM (USD, tal como lo entrega el e-SEIA, a veces en
+    notación científica) al formato chileno en millones de US$ que espera el
+    dashboard (parseMonto en docs/index.html): punto como separador de miles,
+    coma como separador decimal. Devuelve "" si no hay monto.
+    """
+    try:
+        mm = float(valor) / 1_000_000
+    except (TypeError, ValueError):
+        return ""
+    if mm <= 0:
+        return ""
+    entero, _, decimal = f"{mm:,.1f}".partition(".")
+    entero = entero.replace(",", ".")
+    return entero if decimal == "0" else f"{entero},{decimal}"
+
+
 # --------------------------------------------------------------------------
 # Fuente 1: e-SEIA
 # --------------------------------------------------------------------------
 
 def fetch_seia() -> list[dict]:
-    """Consulta el buscador del e-SEIA y devuelve proyectos mineros recientes.
+    """Consulta el endpoint JSON del buscador del e-SEIA y devuelve los
+    proyectos mineros más recientes.
 
-    Parsea la tabla HTML de resultados de forma defensiva: localiza la columna
-    por el texto de su encabezado, de modo que sigue funcionando si el sitio
-    reordena columnas. Si el sitio cambia mucho su HTML, revisa esta función.
+    El sitio migró de una tabla HTML a un endpoint JSON (DataTables server-side,
+    buscarProyectoResumenAction.php) durante 2026; si vuelve a cambiar, este es
+    el único lugar del script a revisar.
     """
     import requests
-    from bs4 import BeautifulSoup
 
     proyectos: list[dict] = []
     for pagina in range(1, SEIA_MAX_PAGINAS + 1):
-        params = {
-            "tipoPresentacion": "AMBOS",
-            "Pengan": "",
-            "principal": "1",
-            "estadoProyecto": "",
-            "orderby": "5",   # ordenar por fecha
-            "orderbyc": "DESC",
-            "pagina": str(pagina),
+        payload = {
+            "nombre": "", "titular": "", "folio": "",
+            "selectRegion": "", "selectComuna": "",
+            "tipoPresentacion": "", "projectStatus": "",
+            "PresentacionMin": "", "PresentacionMax": "",
+            "CalificaMin": "", "CalificaMax": "",
+            "sectores_economicos": str(SEIA_SECTOR_ID) if SEIA_SECTOR_ID else "",
+            "razoningreso": "", "id_tipoexpediente": "",
+            "offset": pagina, "limit": SEIA_PAGE_SIZE,
+            "orderColumn": "FECHA_PRESENTACION", "orderDir": "desc",
         }
-        if SEIA_SECTOR_ID:
-            params["sector"] = str(SEIA_SECTOR_ID)
         try:
-            r = requests.get(SEIA_URL, params=params, headers=HEADERS, timeout=45)
+            r = requests.post(SEIA_URL, data=payload, headers=HEADERS, timeout=45)
             r.raise_for_status()
+            body = r.json()
         except Exception as e:  # noqa: BLE001
             print(f"[SEIA] Error consultando página {pagina}: {e}", file=sys.stderr)
             break
 
-        soup = BeautifulSoup(r.text, "lxml")
-        tabla = soup.find("table")
-        if not tabla:
-            print(f"[SEIA] No se encontró tabla en página {pagina}.", file=sys.stderr)
+        filas = body.get("data") or []
+        if not filas:
             break
 
-        filas = tabla.find_all("tr")
-        if len(filas) < 2:
-            break
-
-        # Mapear encabezados -> índice de columna.
-        encabezados = [limpiar(th.get_text()).lower() for th in filas[0].find_all(["th", "td"])]
-
-        def idx(*claves, default=None):
-            for i, h in enumerate(encabezados):
-                if any(c in h for c in claves):
-                    return i
-            return default
-
-        i_nombre = idx("nombre", default=1)
-        i_tipo = idx("tipo")
-        i_region = idx("región", "region")
-        i_tipologia = idx("tipología", "tipologia", "sector")
-        i_titular = idx("titular", "razón", "razon", "empresa")
-        i_inv = idx("inversión", "inversion", "mm")
-        i_fecha = idx("fecha")
-        i_estado = idx("estado")
-
-        for fila in filas[1:]:
-            celdas = fila.find_all("td")
-            if len(celdas) < 3:
-                continue
-
-            def val(i):
-                return limpiar(celdas[i].get_text()) if i is not None and i < len(celdas) else ""
-
-            nombre = val(i_nombre)
+        for fila in filas:
+            nombre = limpiar(fila.get("EXPEDIENTE_NOMBRE"))
             if not nombre:
                 continue
 
-            enlace = ""
-            a = celdas[i_nombre].find("a") if i_nombre is not None and i_nombre < len(celdas) else None
-            if a and a.get("href"):
-                href = a["href"]
-                enlace = href if href.startswith("http") else "https://seia.sea.gob.cl" + href
-
             registro = {
                 "nombre": nombre,
-                "tipo": val(i_tipo),            # DIA / EIA
-                "region": val(i_region),
-                "tipologia": val(i_tipologia),
-                "titular": val(i_titular),
-                "inversion_mmusd": val(i_inv),
-                "fecha": val(i_fecha),
-                "estado": val(i_estado),
-                "enlace": enlace,
+                "tipo": limpiar(fila.get("WORKFLOW_DESCRIPCION")),  # DIA / EIA
+                "region": limpiar(fila.get("REGION_NOMBRE")),
+                "tipologia": limpiar(fila.get("DESCRIPCION_TIPOLOGIA") or fila.get("TIPO_PROYECTO")),
+                "titular": limpiar(fila.get("TITULAR")),
+                "inversion_mmusd": formato_inversion_mm(fila.get("INVERSION_MM")),
+                "fecha": limpiar(fila.get("FECHA_PRESENTACION_FORMAT")),
+                "estado": limpiar(fila.get("ESTADO_PROYECTO")),
+                "enlace": fila.get("EXPEDIENTE_URL_FICHA") or fila.get("EXPEDIENTE_URL_PPAL") or "",
             }
 
             # Filtro de minería (por tipología/nombre) salvo que ya se filtre por sector.
             texto_check = " ".join([nombre, registro["tipologia"], registro["titular"]])
             if SEIA_SECTOR_ID or es_mineria(texto_check):
                 proyectos.append(registro)
+
+        if len(filas) < SEIA_PAGE_SIZE:
+            break  # última página disponible
 
         time.sleep(1)  # cortesía con el servidor
 
@@ -335,8 +321,9 @@ def fetch_oportunidades_rr() -> list[dict]:
     son gratis) nunca dependan de esta parte de pago.
 
     Configurado para minimizar costo: modelo claude-sonnet-5 (no opus), effort
-    "low", y máximo 4 búsquedas web por corrida. Ver README para cómo ajustar
-    esto si la calidad de las oportunidades detectadas no convence.
+    "medium" (subido desde "low" tras la primera corrida real, que no encontró
+    nada), y máximo 4 búsquedas web por corrida. Ver README para cómo seguir
+    ajustando esto si la calidad de las oportunidades detectadas no convence.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -357,7 +344,7 @@ def fetch_oportunidades_rr() -> list[dict]:
                 messages=messages,
                 tools=[{"type": "web_search_20260209", "name": "web_search", "max_uses": 4}],
                 output_config={
-                    "effort": "low",
+                    "effort": "medium",
                     "format": {"type": "json_schema", "schema": OPORTUNIDADES_SCHEMA},
                 },
             )

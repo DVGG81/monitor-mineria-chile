@@ -65,16 +65,17 @@ Todo el sistema es gratuito salvo la sección de "Oportunidades para Recursos y 
 económicas disponibles para minimizar ese costo:
 
 - Modelo `claude-sonnet-5` (no `claude-opus-5`, que es más caro).
-- `output_config.effort: "low"` — reduce el gasto en tokens de razonamiento.
+- `output_config.effort: "medium"` — la primera corrida real con `"low"` no encontró
+  ninguna oportunidad, así que se subió un nivel. Si vuelve a pasar, el siguiente ajuste
+  es `max_uses` (más búsquedas) antes que subir a `"high"` o cambiar de modelo.
 - Máximo 4 búsquedas web (`max_uses`) por corrida.
 - Cadencia semanal, no diaria.
 
 Aun así, cada corrida consume una cantidad de tokens que varía según cuánto necesite
 investigar esa semana — revisa las tarifas vigentes en la consola de Anthropic antes de
-dejarlo corriendo indefinidamente. Para bajar el costo aún más: reduce `max_uses` en
-`collector.py`, o espacia el cron a cada dos semanas. Si en cambio las oportunidades
-detectadas se ven pobres o repetitivas, el primer ajuste es subir `effort` a `"medium"`
-en `collector.py` antes de cambiar de modelo.
+dejarlo corriendo indefinidamente. Para bajar el costo: reduce `effort` de vuelta a
+`"low"` o espacia el cron a cada dos semanas. Para subir la calidad de las oportunidades
+detectadas: sube `max_uses`, y solo después `effort` a `"high"`.
 
 ## Probar en tu computador (opcional)
 
@@ -112,11 +113,13 @@ dejarlo corriendo en el cron semanal.
 
 ## Nota importante sobre las fuentes
 
-El e-SEIA es un sitio del Estado y su HTML puede cambiar; la función `fetch_seia`
-está escrita de forma defensiva (ubica columnas por su encabezado), pero **conviene
-correr `python collector.py` una vez de forma local** para confirmar que el parser
-calza con el sitio actual antes de confiar en la automatización. Si el sitio cambia
-su estructura, el único archivo a ajustar es `fetch_seia` en `collector.py`.
+El e-SEIA es un sitio del Estado y puede cambiar sin aviso — de hecho ya cambió una vez:
+originalmente `fetch_seia` parseaba una tabla HTML, pero el sitio migró a un endpoint
+JSON (`buscarProyectoResumenAction.php`, un backend de DataTables), así que la función
+ahora hace un POST directo a ese endpoint. **Conviene correr `python collector.py` una
+vez de forma local** de vez en cuando para confirmar que sigue funcionando antes de
+confiar ciegamente en la automatización. Si el sitio vuelve a cambiar su estructura, el
+único lugar a ajustar es `fetch_seia` en `collector.py`.
 
 Este panel es referencial. Para decisiones, verifica siempre en la fuente oficial
 (https://seia.sea.gob.cl).
